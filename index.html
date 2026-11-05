@@ -7,13 +7,19 @@
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; background: #111; color: #eee; font-family: Segoe UI, Tahoma, sans-serif; }
-  #bar { display: flex; flex-wrap: wrap; gap: 12px; padding: 12px; background: #1c1c1c; align-items: center; }
-  #bar label { display: flex; flex-direction: column; font-size: 12px; color: #aaa; gap: 4px; }
+  #bar, #bar2 { display: flex; flex-wrap: wrap; gap: 12px 16px; padding: 10px 12px; background: #1c1c1c; align-items: center; }
+  #bar2 { background: #181818; border-top: 1px solid #262626; font-size: 13px; color: #ccc; }
+  #bar label.f { display: flex; flex-direction: column; font-size: 12px; color: #aaa; gap: 4px; }
   #bar input { color: #ddd; font-size: 13px; }
-  #hint { margin-left: auto; font-size: 12px; color: #888; }
-  #stage { position: relative; background: #000; width: 100%; max-width: 1280px; margin: 12px auto; }
+  .grp { display: inline-flex; align-items: center; gap: 6px; }
+  .grp b { min-width: 52px; text-align: center; font-weight: 600; color: #fff; }
+  #bar2 button, #bar2 select { background: #2b2b2b; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 4px 10px; font-size: 13px; cursor: pointer; }
+  #bar2 button:hover { background: #3a3a3a; }
+  #status { color: #8ab4f8; }
+  #hint { padding: 6px 12px; font-size: 12px; color: #888; max-width: 1280px; margin: 0 auto; }
+  #stage { position: relative; background: #000; width: 100%; max-width: 1280px; margin: 8px auto; }
   #stage:fullscreen { max-width: none; margin: 0; display: flex; align-items: center; }
-  video { width: 100%; max-height: 80vh; display: block; background: #000; }
+  video { width: 100%; max-height: 78vh; display: block; background: #000; }
   #stage:fullscreen video { max-height: 100vh; height: 100vh; }
   #subs { position: absolute; left: 0; right: 0; bottom: 56px; text-align: center; pointer-events: none; padding: 0 5%; }
   .line { display: inline-block; margin: 2px 0; padding: 4px 12px; background: rgba(0,0,0,.72); border-radius: 4px; line-height: 1.5; white-space: pre-line; }
@@ -21,22 +27,52 @@
   #fa { font-size: clamp(16px, 2.4vw, 32px); color: #ffd54a; direction: rtl; unicode-bidi: plaintext; font-family: Vazirmatn, Tahoma, "Segoe UI", sans-serif; }
   #subs div { display: block; }
   .hidden { display: none !important; }
+  body.wc .w { pointer-events: auto; cursor: pointer; }
+  body.wc .w:hover { background: rgba(255,255,255,.25); border-radius: 3px; }
   #fsb { position: absolute; top: 10px; right: 10px; z-index: 5; background: rgba(0,0,0,.6); color: #fff; border: 1px solid #555; border-radius: 4px; padding: 6px 10px; font-size: 13px; cursor: pointer; opacity: .65; }
   #fsb:hover { opacity: 1; }
+  #toast { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 6; background: rgba(0,0,0,.8); color: #fff; padding: 6px 14px; border-radius: 6px; font-size: 14px; pointer-events: none; opacity: 0; transition: opacity .2s; max-width: 80%; text-align: center; }
+  #toast.on { opacity: 1; }
 </style>
 </head>
 <body>
 
 <div id="bar">
-  <label>Video <input type="file" id="vf" accept="video/*,.mkv"></label>
-  <label>English subtitle <input type="file" id="ef" accept=".srt,.vtt,.txt"></label>
-  <label>Persian subtitle <input type="file" id="pf" accept=".srt,.vtt,.txt"></label>
-  <div id="hint">Space: play/pause &nbsp;|&nbsp; P: show Persian &nbsp;|&nbsp; ←/→: ±5s &nbsp;|&nbsp; F: fullscreen</div>
+  <label class="f">Video <input type="file" id="vf" accept="video/*,.mkv"></label>
+  <label class="f">English subtitle <input type="file" id="ef" accept=".srt,.vtt,.txt"></label>
+  <label class="f">Persian subtitle <input type="file" id="pf" accept=".srt,.vtt,.txt"></label>
+</div>
+
+<div id="bar2">
+  <label>Speed
+    <select id="spd" tabindex="-1">
+      <option value="0.5">0.5×</option>
+      <option value="0.75">0.75×</option>
+      <option value="1" selected>1×</option>
+      <option value="1.25">1.25×</option>
+      <option value="1.5">1.5×</option>
+      <option value="2">2×</option>
+    </select>
+  </label>
+  <label><input type="checkbox" id="ap" tabindex="-1"> Auto-pause at end of sentence</label>
+  <label><input type="checkbox" id="wc" tabindex="-1" checked> Click a word to translate</label>
+  <span class="grp">English sync <button id="en-" tabindex="-1">−</button><b id="enOffV">+0.0s</b><button id="en+" tabindex="-1">+</button></span>
+  <span class="grp">Persian sync <button id="fa-" tabindex="-1">−</button><b id="faOffV">+0.0s</b><button id="fa+" tabindex="-1">+</button></span>
+  <button id="auto" tabindex="-1">Auto-sync Persian</button>
+  <button id="rst" tabindex="-1">Reset sync</button>
+  <span id="status"></span>
+</div>
+
+<div id="hint">
+  Space: play/pause &nbsp;|&nbsp; P: show/hide Persian &nbsp;|&nbsp; R: repeat sentence &nbsp;|&nbsp; A / D: previous / next sentence &nbsp;|&nbsp;
+  Z / X: slower / faster &nbsp;|&nbsp; T: auto-pause &nbsp;|&nbsp; [ / ]: Persian earlier / later &nbsp;|&nbsp; - / =: English earlier / later (Shift = 0.1s) &nbsp;|&nbsp;
+  ←/→: ±5s &nbsp;|&nbsp; F: fullscreen
 </div>
 
 <div id="stage">
   <video id="v" controls controlslist="nofullscreen" disablepictureinpicture tabindex="-1"></video>
   <button id="fsb" type="button" tabindex="-1">Fullscreen (F)</button>
+  <div id="toast"></div>
   <div id="subs">
     <div><span id="en" class="line hidden"></span></div>
     <div><span id="fa" class="line hidden"></span></div>
@@ -46,16 +82,37 @@
 <script>
 const $ = id => document.getElementById(id);
 const v = $('v'), en = $('en'), fa = $('fa'), stage = $('stage');
-let enCues = [], faCues = [], curIdx = -1;
 
-function decode(buf) {
-  let t = new TextDecoder('utf-8').decode(buf);
-  if (t.includes('\uFFFD')) {            // probably a Windows-1256 Persian file
-    try { t = new TextDecoder('windows-1256').decode(buf); } catch (e) {}
-  }
-  return t.replace(/^\uFEFF/, '');
+let enCues = [], faCues = [], curIdx = -1, pausedFor = -1;
+let enOff = 0, faOff = 0;                    // manual offsets (seconds)
+let al = { L: 0, slope: 0, t1: 0 };          // automatic Persian -> English time alignment
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+/* ---------- helpers ---------- */
+const fmt = n => (n >= 0 ? '+' : '') + n.toFixed(1) + 's';
+const round1 = n => Math.round(n * 10) / 10;
+const alignX = x => (x + al.L - al.slope * al.t1) / (1 - al.slope);   // Persian time -> English time
+
+let toastTimer;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('on'), 1600);
+}
+function refreshLabels() {
+  $('enOffV').textContent = fmt(enOff);
+  $('faOffV').textContent = fmt(faOff);
 }
 
+/* ---------- subtitle loading ---------- */
+function decode(buf) {
+  let t = new TextDecoder('utf-8').decode(buf);
+  if (t.includes('�')) {            // probably a Windows-1256 Persian file
+    try { t = new TextDecoder('windows-1256').decode(buf); } catch (e) {}
+  }
+  return t.replace(/^﻿/, '');
+}
 function toSec(s) {
   s = s.trim().replace(',', '.');
   const p = s.split(':').map(Number);
@@ -63,7 +120,6 @@ function toSec(s) {
   if (p.length === 2) return p[0] * 60 + p[1];
   return p[0];
 }
-
 function parse(text) {
   const cues = [];
   const blocks = text.replace(/\r/g, '').split(/\n{2,}/);
@@ -80,7 +136,6 @@ function parse(text) {
   }
   return cues.sort((a, b) => a.s - b.s);
 }
-
 function readFile(file, cb) {
   const r = new FileReader();
   r.onload = () => cb(decode(r.result));
@@ -92,58 +147,196 @@ $('vf').onchange = e => {
   v.src = URL.createObjectURL(f);
   e.target.blur();
 };
-$('ef').onchange = e => { const f = e.target.files[0]; if (f) readFile(f, t => { enCues = parse(t); curIdx = -2; update(); }); e.target.blur(); };
-$('pf').onchange = e => { const f = e.target.files[0]; if (f) readFile(f, t => { faCues = parse(t); }); e.target.blur(); };
+$('ef').onchange = e => {
+  const f = e.target.files[0];
+  if (f) readFile(f, t => { enCues = parse(t); curIdx = -2; update(); });
+  e.target.blur();
+};
+$('pf').onchange = e => {
+  const f = e.target.files[0];
+  if (f) readFile(f, t => { faCues = parse(t); al = { L: 0, slope: 0, t1: 0 }; faOff = 0; refreshLabels(); });
+  e.target.blur();
+};
 
+/* ---------- current sentence ---------- */
 function findEn(t) {
+  const x = t - enOff;
   for (let i = 0; i < enCues.length; i++) {
-    if (t >= enCues[i].s && t <= enCues[i].e) return i;
+    if (x >= enCues[i].s && x <= enCues[i].e) return i;
   }
   return -1;
 }
-
+function renderEn(text) {
+  en.textContent = '';
+  const parts = text.split(/([A-Za-zÀ-ɏ]+(?:['’\-][A-Za-zÀ-ɏ]+)*)/);
+  parts.forEach((p, i) => {
+    if (i % 2 === 1) {
+      const s = document.createElement('span');
+      s.className = 'w'; s.textContent = p; en.appendChild(s);
+    } else if (p) en.appendChild(document.createTextNode(p));
+  });
+}
 function update() {
   const i = findEn(v.currentTime);
   if (i !== curIdx) {
-    curIdx = i;
-    fa.classList.add('hidden');          // new sentence -> hide Persian again
-    if (i >= 0) { en.textContent = enCues[i].t; en.classList.remove('hidden'); }
+    curIdx = i; pausedFor = -1;
+    fa.classList.add('hidden');            // new sentence -> hide Persian again
+    if (i >= 0) { renderEn(enCues[i].t); en.classList.remove('hidden'); }
     else en.classList.add('hidden');
   }
 }
+function refIdx() {                         // current sentence, or the last one that started
+  if (curIdx >= 0) return curIdx;
+  const x = v.currentTime - enOff;
+  let r = -1;
+  for (let k = 0; k < enCues.length; k++) if (enCues[k].s <= x) r = k; else break;
+  return r;
+}
+function goTo(i) {
+  if (!enCues.length) return;
+  i = Math.max(0, Math.min(enCues.length - 1, i));
+  v.currentTime = enCues[i].s + enOff + 0.02;
+  pausedFor = -1; curIdx = -2; update();
+  v.play();
+}
 
+/* ---------- Persian ---------- */
 function showPersian() {
-  if (!faCues.length) return;
-  let i = curIdx;
-  if (i < 0) {                            // between cues: use the last English cue
-    const t = v.currentTime;
-    for (let k = 0; k < enCues.length; k++) if (enCues[k].s <= t) i = k;
-    if (i < 0) return;
-  }
+  if (!fa.classList.contains('hidden')) { fa.classList.add('hidden'); return; }   // P again hides it
+  if (!faCues.length) { toast('Load the Persian subtitle first'); return; }
+  const i = refIdx(); if (i < 0) return;
   const c = enCues[i];
-  // Persian cue with the biggest time overlap
-  let best = null, bestOv = 0;
+  const dE = Math.max(0.2, c.e - c.s);
+  const picks = [];
   for (const f of faCues) {
-    const ov = Math.min(c.e, f.e) - Math.max(c.s, f.s);
-    if (ov > bestOv) { bestOv = ov; best = f; }
+    const s = alignX(f.s) + faOff, e = alignX(f.e) + faOff;
+    const ov = Math.min(c.e, e) - Math.max(c.s, s);
+    if (ov > 0 && ov >= 0.3 * Math.min(dE, Math.max(0.2, e - s))) picks.push(f.t);
   }
-  if (!best && faCues[i]) best = faCues[i];   // fallback: same index
-  if (!best) return;
-  fa.textContent = best.t;
+  if (!picks.length) {                      // fallback: nearest Persian line within 4 seconds
+    let bestD = 4, bf = null;
+    const mid = (c.s + c.e) / 2;
+    for (const f of faCues) {
+      const d = Math.abs((alignX(f.s) + alignX(f.e)) / 2 + faOff - mid);
+      if (d < bestD) { bestD = d; bf = f; }
+    }
+    if (bf) picks.push(bf.t);
+  }
+  if (!picks.length) { toast('No matching Persian line here — try Auto-sync or the [ ] keys'); return; }
+  fa.textContent = [...new Set(picks)].join('\n');
   fa.classList.remove('hidden');
 }
 
-v.addEventListener('timeupdate', update);
-v.addEventListener('seeked', update);
-(function loop() { update(); requestAnimationFrame(loop); })();
-
-function toggleFs() {
-  if (document.fullscreenElement) document.exitFullscreen();
-  else stage.requestFullscreen();   // fullscreen the whole stage so subtitles stay visible
+/* ---------- automatic Persian alignment ---------- */
+// Cross-correlates "speech activity" of both subtitle files to find the time shift.
+function bestLag(winS, winE, lo, hi) {
+  const step = 0.1;
+  const N = Math.max(1, Math.ceil((winE - winS) / step));
+  const A = new Uint8Array(N);
+  for (const c of enCues) {
+    if (c.e < winS || c.s > winE) continue;
+    const a = Math.max(0, Math.floor((c.s - winS) / step));
+    const b = Math.min(N - 1, Math.ceil((c.e - winS) / step));
+    for (let i = a; i <= b; i++) A[i] = 1;
+  }
+  const actList = [];
+  for (let i = 0; i < N; i++) if (A[i]) actList.push(i);
+  if (!actList.length) return null;
+  const act = Int32Array.from(actList);
+  const bS = winS - hi;
+  const K = Math.round((hi - lo) / step);
+  const M = N + K + 2;
+  const B = new Uint8Array(M);
+  for (const f of faCues) {
+    if (f.e < bS || f.s > bS + M * step) continue;
+    const a = Math.max(0, Math.floor((f.s - bS) / step));
+    const b = Math.min(M - 1, Math.ceil((f.e - bS) / step));
+    for (let i = a; i <= b; i++) B[i] = 1;
+  }
+  let best = -1, bk = 0;
+  for (let k = 0; k <= K; k++) {
+    let s = 0;
+    for (let j = 0; j < act.length; j++) s += B[k + act[j]];
+    if (s > best || (s === best && Math.abs(hi - k * step) < Math.abs(hi - bk * step))) { best = s; bk = k; }
+  }
+  return { lag: hi - bk * step, score: best / act.length };
 }
 
-function togglePlay() { v.paused ? v.play() : v.pause(); }
+function autoSync() {
+  if (!enCues.length || !faCues.length) { toast('Load both subtitles first'); return; }
+  $('status').textContent = 'Syncing…';
+  setTimeout(() => {
+    const first = enCues[0].s, last = enCues[enCues.length - 1].e, span = last - first;
+    const g = bestLag(first, last, -180, 180);
+    if (!g) { $('status').textContent = ''; toast('Could not sync'); return; }
+    let note = '';
+    al = { L: g.lag, slope: 0, t1: 0 };
+    if (span > 600) {                       // check for drift (different frame rates)
+      const w = span * 0.2;
+      const r1 = bestLag(first, first + w, g.lag - 15, g.lag + 15);
+      const r2 = bestLag(last - w, last, g.lag - 15, g.lag + 15);
+      if (r1 && r2 && r1.score > 0.2 && r2.score > 0.2 && Math.abs(r2.lag - r1.lag) >= 0.5) {
+        const t1 = first + w / 2, t2 = last - w / 2;
+        al = { L: r1.lag, slope: (r2.lag - r1.lag) / (t2 - t1), t1 };
+        note = ' (with drift correction)';
+      }
+    }
+    faOff = 0; refreshLabels();
+    const q = Math.round(g.score * 100);
+    const msg = 'Persian aligned: ' + fmt(g.lag) + note + ', match ' + q + '%' + (q < 35 ? ' — low, files may be different versions' : '');
+    $('status').textContent = msg; toast(msg);
+    curIdx = -2; update();
+  }, 30);
+}
 
+/* ---------- controls ---------- */
+function setSpeed(r) {
+  r = Math.max(SPEEDS[0], Math.min(SPEEDS[SPEEDS.length - 1], r));
+  v.playbackRate = r; $('spd').value = String(r);
+  toast('Speed ' + r + '×');
+}
+function stepSpeed(d) {
+  let i = SPEEDS.indexOf(+$('spd').value); if (i < 0) i = 2;
+  setSpeed(SPEEDS[Math.max(0, Math.min(SPEEDS.length - 1, i + d))]);
+}
+function adjEn(d) { enOff = round1(enOff + d); refreshLabels(); curIdx = -2; update(); toast('English sync ' + fmt(enOff)); }
+function adjFa(d) { faOff = round1(faOff + d); refreshLabels(); toast('Persian sync ' + fmt(faOff)); }
+function resetSync() {
+  enOff = 0; faOff = 0; al = { L: 0, slope: 0, t1: 0 };
+  refreshLabels(); $('status').textContent = ''; curIdx = -2; update(); toast('Sync reset');
+}
+function toggleFs() {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else stage.requestFullscreen();           // fullscreen the whole stage so subtitles stay visible
+}
+function togglePlay() { v.paused ? v.play() : v.pause(); }
+function toggleAutoPause() { const c = $('ap'); c.checked = !c.checked; toast('Auto-pause ' + (c.checked ? 'on' : 'off')); }
+
+function bind(id, fn) {
+  const b = $(id);
+  b.addEventListener('mousedown', e => e.preventDefault());
+  b.addEventListener('click', () => { fn(); b.blur(); });
+}
+bind('en-', () => adjEn(-0.5)); bind('en+', () => adjEn(0.5));
+bind('fa-', () => adjFa(-0.5)); bind('fa+', () => adjFa(0.5));
+bind('auto', autoSync); bind('rst', resetSync);
+$('spd').addEventListener('change', e => { setSpeed(+e.target.value); e.target.blur(); });
+$('ap').addEventListener('change', e => e.target.blur());
+$('wc').addEventListener('change', e => { document.body.classList.toggle('wc', e.target.checked); e.target.blur(); });
+document.body.classList.toggle('wc', $('wc').checked);
+v.addEventListener('loadedmetadata', () => { v.playbackRate = +$('spd').value; });
+
+// Click an English word -> open its translation (needs internet).
+en.addEventListener('click', e => {
+  if (!$('wc').checked) return;
+  const t = e.target;
+  if (t.classList && t.classList.contains('w')) {
+    v.pause();
+    window.open('https://translate.google.com/?sl=en&tl=fa&op=translate&text=' + encodeURIComponent(t.textContent), '_blank', 'noopener');
+  }
+});
+
+/* ---------- keyboard ---------- */
 // Space = play/pause ONLY. Handled in the capture phase so nothing else
 // (the video's own controls, buttons, file inputs, page scroll) can react to it.
 window.addEventListener('keydown', e => {
@@ -158,23 +351,47 @@ window.addEventListener('keyup', e => {
   e.stopImmediatePropagation();
 }, true);
 
+// Uses e.code (physical key), so shortcuts also work with a Persian keyboard layout.
 document.addEventListener('keydown', e => {
-  if (e.code === 'Space') return;
-  const k = e.key.toLowerCase();
-  if (k === 'p') { showPersian(); }
-  else if (e.key === 'ArrowRight') { e.preventDefault(); v.currentTime += 5; }
-  else if (e.key === 'ArrowLeft') { e.preventDefault(); v.currentTime -= 5; }
-  else if (k === 'f') { toggleFs(); }
+  if (e.code === 'Space' || e.ctrlKey || e.altKey || e.metaKey) return;
+  const fine = e.shiftKey ? 0.1 : 0.5;
+  switch (e.code) {
+    case 'KeyP': showPersian(); break;
+    case 'KeyR': { const i = refIdx(); if (i >= 0) goTo(i); break; }
+    case 'KeyD': { const b = refIdx(); goTo(b + 1); break; }
+    case 'KeyA': { const b = refIdx(); goTo(curIdx >= 0 ? b - 1 : Math.max(0, b)); break; }
+    case 'KeyZ': stepSpeed(-1); break;
+    case 'KeyX': stepSpeed(1); break;
+    case 'KeyT': toggleAutoPause(); break;
+    case 'KeyF': toggleFs(); break;
+    case 'BracketLeft': adjFa(-fine); break;
+    case 'BracketRight': adjFa(fine); break;
+    case 'Minus': case 'NumpadSubtract': adjEn(-fine); break;
+    case 'Equal': case 'NumpadAdd': adjEn(fine); break;
+    case 'ArrowRight': e.preventDefault(); v.currentTime += 5; break;
+    case 'ArrowLeft': e.preventDefault(); v.currentTime -= 5; break;
+  }
 });
 
-// Keep focus off the video and buttons so the browser never handles keys itself.
+// Keep focus off the video so the browser never handles keys itself.
 v.addEventListener('focus', () => v.blur());
-$('fsb').addEventListener('click', e => { toggleFs(); e.currentTarget.blur(); });
 v.addEventListener('click', () => v.blur());   // the browser itself toggles play on click
 v.addEventListener('dblclick', toggleFs);
+$('fsb').addEventListener('click', e => { toggleFs(); e.currentTarget.blur(); });
 document.addEventListener('fullscreenchange', () => {
   $('fsb').textContent = document.fullscreenElement ? 'Exit fullscreen (F)' : 'Fullscreen (F)';
 });
+
+/* ---------- main loop ---------- */
+v.addEventListener('seeked', update);
+(function loop() {
+  update();
+  if ($('ap').checked && !v.paused && curIdx >= 0 && pausedFor !== curIdx &&
+      v.currentTime >= enCues[curIdx].e + enOff - 0.04) {
+    v.pause(); pausedFor = curIdx;
+  }
+  requestAnimationFrame(loop);
+})();
 </script>
 </body>
 </html>
