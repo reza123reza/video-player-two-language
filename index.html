@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Subtitle Player</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #111; color: #eee; font-family: Segoe UI, Tahoma, sans-serif; }
+  #bar { display: flex; flex-wrap: wrap; gap: 12px; padding: 12px; background: #1c1c1c; align-items: center; }
+  #bar label { display: flex; flex-direction: column; font-size: 12px; color: #aaa; gap: 4px; }
+  #bar input { color: #ddd; font-size: 13px; }
+  #hint { margin-left: auto; font-size: 12px; color: #888; }
+  #stage { position: relative; background: #000; width: 100%; max-width: 1280px; margin: 12px auto; }
+  #stage:fullscreen { max-width: none; margin: 0; display: flex; align-items: center; }
+  video { width: 100%; max-height: 80vh; display: block; background: #000; }
+  #stage:fullscreen video { max-height: 100vh; height: 100vh; }
+  #subs { position: absolute; left: 0; right: 0; bottom: 56px; text-align: center; pointer-events: none; padding: 0 5%; }
+  .line { display: inline-block; margin: 2px 0; padding: 4px 12px; background: rgba(0,0,0,.72); border-radius: 4px; line-height: 1.5; white-space: pre-line; }
+  #en { font-size: clamp(16px, 2.4vw, 32px); color: #fff; }
+  #fa { font-size: clamp(16px, 2.4vw, 32px); color: #ffd54a; direction: rtl; unicode-bidi: plaintext; font-family: Vazirmatn, Tahoma, "Segoe UI", sans-serif; }
+  #subs div { display: block; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="bar">
+  <label>Video <input type="file" id="vf" accept="video/*,.mkv"></label>
+  <label>English subtitle <input type="file" id="ef" accept=".srt,.vtt,.txt"></label>
+  <label>Persian subtitle <input type="file" id="pf" accept=".srt,.vtt,.txt"></label>
+  <div id="hint">Space: play/pause &nbsp;|&nbsp; P: show Persian &nbsp;|&nbsp; ←/→: ±5s &nbsp;|&nbsp; F: fullscreen</div>
+</div>
+
+<div id="stage">
+  <video id="v"></video>
+  <div id="subs">
+    <div><span id="en" class="line hidden"></span></div>
+    <div><span id="fa" class="line hidden"></span></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const v = $('v'), en = $('en'), fa = $('fa'), stage = $('stage');
+let enCues = [], faCues = [], curIdx = -1;
+
+function decode(buf) {
+  let t = new TextDecoder('utf-8').decode(buf);
+  if (t.includes('\uFFFD')) {            // probably a Windows-1256 Persian file
+    try { t = new TextDecoder('windows-1256').decode(buf); } catch (e) {}
+  }
+  return t.replace(/^\uFEFF/, '');
+}
+
+function toSec(s) {
+  s = s.trim().replace(',', '.');
+  const p = s.split(':').map(Number);
+  if (p.length === 3) return p[0] * 3600 + p[1] * 60 + p[2];
+  if (p.length === 2) return p[0] * 60 + p[1];
+  return p[0];
+}
+
+function parse(text) {
+  const cues = [];
+  const blocks = text.replace(/\r/g, '').split(/\n{2,}/);
+  for (const b of blocks) {
+    const lines = b.split('\n');
+    const i = lines.findIndex(l => l.includes('-->'));
+    if (i < 0) continue;
+    const m = lines[i].match(/([\d:.,]+)\s*-->\s*([\d:.,]+)/);
+    if (!m) continue;
+    const body = lines.slice(i + 1).join('\n')
+      .replace(/<[^>]*>/g, '').replace(/\{\\[^}]*\}/g, '').trim();
+    if (!body) continue;
+    cues.push({ s: toSec(m[1]), e: toSec(m[2]), t: body });
+  }
+  return cues.sort((a, b) => a.s - b.s);
+}
+
+function readFile(file, cb) {
+  const r = new FileReader();
+  r.onload = () => cb(decode(r.result));
+  r.readAsArrayBuffer(file);
+}
+
+$('vf').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  v.src = URL.createObjectURL(f);
+  e.target.blur();
+};
+$('ef').onchange = e => { const f = e.target.files[0]; if (f) readFile(f, t => { enCues = parse(t); curIdx = -2; update(); }); e.target.blur(); };
+$('pf').onchange = e => { const f = e.target.files[0]; if (f) readFile(f, t => { faCues = parse(t); }); e.target.blur(); };
+
+function findEn(t) {
+  for (let i = 0; i < enCues.length; i++) {
+    if (t >= enCues[i].s && t <= enCues[i].e) return i;
+  }
+  return -1;
+}
+
+function update() {
+  const i = findEn(v.currentTime);
+  if (i !== curIdx) {
+    curIdx = i;
+    fa.classList.add('hidden');          // new sentence -> hide Persian again
+    if (i >= 0) { en.textContent = enCues[i].t; en.classList.remove('hidden'); }
+    else en.classList.add('hidden');
+  }
+}
+
+function showPersian() {
+  if (!faCues.length) return;
+  let i = curIdx;
+  if (i < 0) {                            // between cues: use the last English cue
+    const t = v.currentTime;
+    for (let k = 0; k < enCues.length; k++) if (enCues[k].s <= t) i = k;
+    if (i < 0) return;
+  }
+  const c = enCues[i];
+  // Persian cue with the biggest time overlap
+  let best = null, bestOv = 0;
+  for (const f of faCues) {
+    const ov = Math.min(c.e, f.e) - Math.max(c.s, f.s);
+    if (ov > bestOv) { bestOv = ov; best = f; }
+  }
+  if (!best && faCues[i]) best = faCues[i];   // fallback: same index
+  if (!best) return;
+  fa.textContent = best.t;
+  fa.classList.remove('hidden');
+}
+
+v.addEventListener('timeupdate', update);
+v.addEventListener('seeked', update);
+(function loop() { update(); requestAnimationFrame(loop); })();
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'file') return;
+  if (e.target.tagName === 'INPUT') e.target.blur();
+  const k = e.key.toLowerCase();
+  if (e.code === 'Space') { e.preventDefault(); v.paused ? v.play() : v.pause(); }
+  else if (k === 'p') { showPersian(); }
+  else if (e.key === 'ArrowRight') { v.currentTime += 5; }
+  else if (e.key === 'ArrowLeft') { v.currentTime -= 5; }
+  else if (k === 'f') { document.fullscreenElement ? document.exitFullscreen() : stage.requestFullscreen(); }
+});
+
+v.addEventListener('click', () => { v.paused ? v.play() : v.pause(); });
+v.setAttribute('controls', '');
+</script>
+</body>
+</html>
