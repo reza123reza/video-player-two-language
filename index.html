@@ -21,6 +21,8 @@
   #fa { font-size: clamp(16px, 2.4vw, 32px); color: #ffd54a; direction: rtl; unicode-bidi: plaintext; font-family: Vazirmatn, Tahoma, "Segoe UI", sans-serif; }
   #subs div { display: block; }
   .hidden { display: none !important; }
+  #fsb { position: absolute; top: 10px; right: 10px; z-index: 5; background: rgba(0,0,0,.6); color: #fff; border: 1px solid #555; border-radius: 4px; padding: 6px 10px; font-size: 13px; cursor: pointer; opacity: .65; }
+  #fsb:hover { opacity: 1; }
 </style>
 </head>
 <body>
@@ -33,7 +35,8 @@
 </div>
 
 <div id="stage">
-  <video id="v"></video>
+  <video id="v" controls controlslist="nofullscreen" disablepictureinpicture tabindex="-1"></video>
+  <button id="fsb" type="button" tabindex="-1">Fullscreen (F)</button>
   <div id="subs">
     <div><span id="en" class="line hidden"></span></div>
     <div><span id="fa" class="line hidden"></span></div>
@@ -134,19 +137,44 @@ v.addEventListener('timeupdate', update);
 v.addEventListener('seeked', update);
 (function loop() { update(); requestAnimationFrame(loop); })();
 
+function toggleFs() {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else stage.requestFullscreen();   // fullscreen the whole stage so subtitles stay visible
+}
+
+function togglePlay() { v.paused ? v.play() : v.pause(); }
+
+// Space = play/pause ONLY. Handled in the capture phase so nothing else
+// (the video's own controls, buttons, file inputs, page scroll) can react to it.
+window.addEventListener('keydown', e => {
+  if (e.code !== 'Space') return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  if (!e.repeat) togglePlay();
+}, true);
+window.addEventListener('keyup', e => {
+  if (e.code !== 'Space') return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+}, true);
+
 document.addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT' && e.target.type !== 'file') return;
-  if (e.target.tagName === 'INPUT') e.target.blur();
+  if (e.code === 'Space') return;
   const k = e.key.toLowerCase();
-  if (e.code === 'Space') { e.preventDefault(); v.paused ? v.play() : v.pause(); }
-  else if (k === 'p') { showPersian(); }
-  else if (e.key === 'ArrowRight') { v.currentTime += 5; }
-  else if (e.key === 'ArrowLeft') { v.currentTime -= 5; }
-  else if (k === 'f') { document.fullscreenElement ? document.exitFullscreen() : stage.requestFullscreen(); }
+  if (k === 'p') { showPersian(); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); v.currentTime += 5; }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); v.currentTime -= 5; }
+  else if (k === 'f') { toggleFs(); }
 });
 
-v.addEventListener('click', () => { v.paused ? v.play() : v.pause(); });
-v.setAttribute('controls', '');
+// Keep focus off the video and buttons so the browser never handles keys itself.
+v.addEventListener('focus', () => v.blur());
+$('fsb').addEventListener('click', e => { toggleFs(); e.currentTarget.blur(); });
+v.addEventListener('click', () => v.blur());   // the browser itself toggles play on click
+v.addEventListener('dblclick', toggleFs);
+document.addEventListener('fullscreenchange', () => {
+  $('fsb').textContent = document.fullscreenElement ? 'Exit fullscreen (F)' : 'Fullscreen (F)';
+});
 </script>
 </body>
 </html>

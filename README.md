@@ -15,10 +15,10 @@ Everything runs locally in your browser. Nothing is uploaded anywhere.
 
 | Key | Action |
 | --- | --- |
-| `Space` | Play / pause |
+| `Space` | Play / pause (only this, nothing else) |
 | `P` | Show the secondary (Persian) subtitle for the current sentence |
 | `←` / `→` | Seek 5 seconds back / forward |
-| `F` | Toggle fullscreen |
+| `F` | Toggle fullscreen (also the on-screen button or a double-click on the video) |
 
 The secondary subtitle is hidden automatically when the next sentence starts.
 
